@@ -27,6 +27,10 @@ class ExcelPlotter:
 
         self.build_ui()
 
+        # ---- Add CTRL+S Save Shortcut ----
+        self.root.bind("<Control-s>", self.save_plot_shortcut)
+        self.root.bind("<Control-S>", self.save_plot_shortcut)
+
     # ---------------- UI ----------------
     def build_ui(self):
         header = tk.Frame(self.root, bg=BG_COLOR, pady=8)
@@ -69,7 +73,7 @@ class ExcelPlotter:
         ttk.Radiobutton(left, text="Bottom", value="bottom", variable=self.pos_var).pack(anchor="w")
         ttk.Radiobutton(left, text="Blank", value="blank", variable=self.pos_var).pack(anchor="w")
 
-        # Title Color + picker
+        # Title Color
         color_row = tk.Frame(left, bg=PANEL_COLOR)
         color_row.pack(anchor="w", pady=(10, 0))
 
@@ -297,6 +301,26 @@ class ExcelPlotter:
 
         tk.Button(dialog, text="Apply", bg="#2ecc71", fg="white",
                   width=12, command=apply_changes).pack(pady=15)
+
+    # ---------- Save Plot Shortcut (CTRL+S) ----------
+    def save_plot_shortcut(self, event=None):
+        if not self.fig:
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[
+                ("PNG Image", "*.png"),
+                ("JPEG Image", "*.jpg"),
+                ("PDF File", "*.pdf")
+            ]
+        )
+        if file_path:
+            try:
+                self.fig.savefig(file_path, dpi=300, bbox_inches="tight")
+                messagebox.showinfo("Saved", "Plot saved successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Unable to save:\n{e}")
 
 
 # ---------- Run ----------
