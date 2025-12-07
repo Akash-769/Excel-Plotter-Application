@@ -1,0 +1,268 @@
+import sys
+import pandas as pd
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QFileDialog, QMessageBox,
+    QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QLabel,
+    QLineEdit, QColorDialog, QRadioButton, QButtonGroup, QShortcut,
+    QFrame, QSizePolicy
+)
+from PyQt5.QtGui import QKeySequence, QColor, QFont
+from PyQt5.QtCore import Qt
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+
+# ---------- Theme ----------
+BG_COLOR = "#1e1e2f"
+PANEL_COLOR = "#2f2f4f"
+BUTTON_COLOR = "#ff6b81"
+TEXT_COLOR = "#f5f6fa"
+INPUT_BG = "#3a3a5c"
+HOVER_COLOR = "#ff8787"
+
+class ExcelPlotter(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Excel Plotter ")
+        self.setGeometry(50, 50, 1400, 800)
+        self.setStyleSheet(f"background-color: {BG_COLOR}; color: {TEXT_COLOR}; font-family: Segoe UI;")
+        self.df = None
+        self.fig = None
+        self.ax = None
+        self.canvas = None
+        self.bottom_title = None
+        self.color = "#ffffff"
+        self.init_ui()
+
+    def init_ui(self):
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        main_layout = QHBoxLayout(main_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(15)
+
+        # -------- Left Panel --------
+        left_panel = QFrame()
+        left_panel.setStyleSheet(f"background-color: {PANEL_COLOR}; border-radius: 15px;")
+        left_panel.setMinimumWidth(300)
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(20, 20, 20, 20)
+        left_layout.setSpacing(12)
+        main_layout.addWidget(left_panel)
+
+        # Header
+        header = QLabel("📊 Excel Plotter")
+        header.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        header.setStyleSheet("color: #ffd32a;")
+        left_layout.addWidget(header, alignment=Qt.AlignCenter)
+        left_layout.addSpacing(10)
+
+        # Load button
+        load_btn = QPushButton("Load Excel File")
+        load_btn.setCursor(Qt.PointingHandCursor)
+        load_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {BUTTON_COLOR};
+                color: white;
+                padding: 10px;
+                border-radius: 10px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {HOVER_COLOR};
+            }}
+        """)
+        load_btn.clicked.connect(self.load_excel)
+        left_layout.addWidget(load_btn)
+
+        # Column selection
+        left_layout.addWidget(QLabel("Select Columns to Plot:"))
+        self.column_list = QListWidget()
+        self.column_list.setSelectionMode(QListWidget.MultiSelection)
+        self.column_list.setStyleSheet(f"background-color: {INPUT_BG}; color: {TEXT_COLOR}; border-radius: 6px; padding: 3px;")
+        left_layout.addWidget(self.column_list)
+
+        # Title input
+        left_layout.addWidget(QLabel("Title:"))
+        self.title_entry = QLineEdit()
+        self.title_entry.setStyleSheet(f"background-color: {INPUT_BG}; border-radius: 6px; padding: 4px; color: {TEXT_COLOR};")
+        left_layout.addWidget(self.title_entry)
+
+        # X label
+        left_layout.addWidget(QLabel("X Label "))
+        self.xlabel_entry = QLineEdit()
+        self.xlabel_entry.setStyleSheet(f"background-color: {INPUT_BG}; border-radius: 6px; padding: 4px; color: {TEXT_COLOR};")
+        left_layout.addWidget(self.xlabel_entry)
+
+        # Y label
+        left_layout.addWidget(QLabel("Y Label "))
+        self.ylabel_entry = QLineEdit()
+        self.ylabel_entry.setStyleSheet(f"background-color: {INPUT_BG}; border-radius: 6px; padding: 4px; color: {TEXT_COLOR};")
+        left_layout.addWidget(self.ylabel_entry)
+
+        # Title position
+        left_layout.addWidget(QLabel("Title Position:"))
+        self.pos_top = QRadioButton("Top")
+        self.pos_bottom = QRadioButton("Bottom")
+        self.pos_blank = QRadioButton("Blank")
+        self.pos_top.setChecked(True)
+        self.pos_group = QButtonGroup()
+        self.pos_group.addButton(self.pos_top)
+        self.pos_group.addButton(self.pos_bottom)
+        self.pos_group.addButton(self.pos_blank)
+        for rb in [self.pos_top, self.pos_bottom, self.pos_blank]:
+            rb.setStyleSheet("color: white;")
+        left_layout.addWidget(self.pos_top)
+        left_layout.addWidget(self.pos_bottom)
+        left_layout.addWidget(self.pos_blank)
+
+        # Title color picker
+        left_layout.addWidget(QLabel("Title Color:"))
+        self.color_btn = QPushButton("Choose Color")
+        self.color_btn.setCursor(Qt.PointingHandCursor)
+        self.color_btn.setStyleSheet(f"background-color: white; color: black; border-radius: 6px; padding: 6px;")
+        self.color_btn.clicked.connect(self.choose_color)
+        left_layout.addWidget(self.color_btn)
+
+        # Title size
+        left_layout.addWidget(QLabel("Title Size:"))
+        self.size_entry = QLineEdit("16")
+        self.size_entry.setStyleSheet(f"background-color: {INPUT_BG}; border-radius: 6px; padding: 4px; color: {TEXT_COLOR};")
+        left_layout.addWidget(self.size_entry)
+
+        # Plot button
+        plot_btn = QPushButton("Plot Graph")
+        plot_btn.setCursor(Qt.PointingHandCursor)
+        plot_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #0984e3;
+                color: white;
+                padding: 12px;
+                border-radius: 10px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #74b9ff;
+            }}
+        """)
+        plot_btn.clicked.connect(self.plot_graph)
+        left_layout.addWidget(plot_btn)
+        left_layout.addStretch()
+
+        # -------- Right Panel (Plot) --------
+        self.right_panel = QFrame()
+        self.right_panel.setStyleSheet("background-color: #f1f1f1; border-radius: 12px;")
+        right_layout = QVBoxLayout(self.right_panel)
+        right_layout.setContentsMargins(10, 10, 10, 10)
+        self.plot_layout = QVBoxLayout()
+        right_layout.addLayout(self.plot_layout)
+        main_layout.addWidget(self.right_panel, 1)
+
+        # Make canvas expand with window
+        self.right_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # CTRL+S shortcut to save
+        self.shortcut_save = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.shortcut_save.activated.connect(self.save_plot)
+
+    # ---------- Load Excel ----------
+    def load_excel(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Open Excel File", "", "Excel Files (*.xlsx *.xls)")
+        if not path:
+            return
+        try:
+            self.df = pd.read_excel(path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Cannot load file:\n{e}")
+            return
+        self.column_list.clear()
+        for col in self.df.columns:
+            self.column_list.addItem(col)
+        QMessageBox.information(self, "Loaded", "Excel file loaded successfully!")
+
+    # ---------- Color Picker ----------
+    def choose_color(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.color = color.name()
+
+    # ---------- Plot ----------
+    def plot_graph(self):
+        if self.df is None:
+            QMessageBox.warning(self, "No Data", "Load an Excel file first.")
+            return
+        indices = [i.row() for i in self.column_list.selectedIndexes()]
+        if len(indices) < 2:
+            QMessageBox.warning(self, "Select Columns", "Select at least TWO columns.")
+            return
+        x_col = self.column_list.item(indices[0]).text()
+        y_cols = [self.column_list.item(i).text() for i in indices[1:]]
+
+        if not self.xlabel_entry.text():
+            xlabel = x_col
+        else:
+            xlabel = self.xlabel_entry.text()
+        if not self.ylabel_entry.text():
+            ylabel = ', '.join(y_cols)
+        else:
+            ylabel = self.ylabel_entry.text()
+
+        if self.canvas:
+            self.plot_layout.removeWidget(self.canvas)
+            self.canvas.deleteLater()
+            self.canvas = None
+
+        self.fig, self.ax = plt.subplots(figsize=(12, 8), facecolor="#f1f1f1")
+
+        for col in y_cols:
+            try:
+                self.ax.plot(self.df[x_col], self.df[col], marker="o", label=col)
+            except:
+                self.ax.plot(pd.to_numeric(self.df[x_col], errors="coerce"),
+                             pd.to_numeric(self.df[col], errors="coerce"),
+                             marker="o", label=col)
+
+        title = self.title_entry.text()
+        size = int(self.size_entry.text())
+        pos = "top" if self.pos_top.isChecked() else "bottom" if self.pos_bottom.isChecked() else "blank"
+
+        # Title
+        if self.bottom_title:
+            self.bottom_title.remove()
+            self.bottom_title = None
+        if pos == "top":
+            self.ax.set_title(title, fontsize=size, color=self.color, pad=20)
+        elif pos == "bottom":
+            self.ax.set_title("")
+            self.bottom_title = self.fig.text(0.5, 0.02, title, ha='center', fontsize=size, color=self.color)
+        else:
+            self.ax.set_title("")
+
+        # Axis labels
+        self.ax.set_xlabel(xlabel)
+        self.ax.set_ylabel(ylabel)
+
+        self.ax.grid(True, alpha=0.6)
+        self.ax.legend()
+
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.plot_layout.addWidget(self.canvas)
+        self.canvas.draw()
+
+    # ---------- Save Plot ----------
+    def save_plot(self):
+        if not self.fig:
+            QMessageBox.warning(self, "No Plot", "Plot a graph first to save!")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save Plot", "", "PNG Image (*.png);;JPEG Image (*.jpg)")
+        if path:
+            self.fig.savefig(path)
+            QMessageBox.information(self, "Saved", f"Plot saved at:\n{path}")
+
+# ---------- Run ----------
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = ExcelPlotter()
+    window.show()
+    sys.exit(app.exec_())
+                                                                                                                                                                                                                              
